@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from langchain_core.messages import HumanMessage
+from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_ollama import ChatOllama
 
@@ -27,10 +27,8 @@ Always confirm destructive operations (CREATE, DELETE, MERGE, SET, REMOVE) with 
 TOOLS = [neo4j_query, neo4j_schema]
 
 
-def build_agent():
+def build_agent() -> AgentExecutor:
     """Create and return a LangChain agent executor."""
-    from langgraph.prebuilt import create_react_agent
-
     llm = ChatOllama(
         model=LLM_MODEL,
         temperature=LLM_TEMPERATURE,
@@ -39,29 +37,24 @@ def build_agent():
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", SYSTEM_PROMPT),
-        MessagesPlaceholder(variable_name="messages"),
+        MessagesPlaceholder(variable_name="chat_history", optional=True),
+        ("human", "{input}"),
+        MessagesPlaceholder(variable_name="agent_scratchpad"),
     ])
 
-    agent = create_react_agent(
-        model=llm,
-        tools=TOOLS,
-        prompt=prompt,
-    )
-    return agent
+    agent = create_tool_calling_agent(llm, TOOLS, prompt)
+    return AgentExecutor(agent=agent, tools=TOOLS, verbose=True)
 
 
-def run_agent_once(agent, user_input: str) -> str:
+def run_agent_once(agent: AgentExecutor, user_input: str) -> str:
     """Send a single user message and return the final assistant response."""
-    result = agent.invoke({"messages": [HumanMessage(content=user_input)]})
-    # The last message from the agent is the final answer.
-    return result["messages"][-1].content
+    result = agent.invoke({"input": user_input})
+    return result["output"]
 
 
-def run_interactive(agent) -> None:
+def run_interactive(agent: AgentExecutor) -> None:
     """Run a REPL-style interactive loop."""
-    from langchain_core.messages import AIMessage
-
-    messages: list = []
+    chat_history: list = []
     print("Neo4j LangChain Harness (type 'exit' to quit)")
     print("=" * 50)
 
@@ -78,10 +71,7 @@ def run_interactive(agent) -> None:
             print("Goodbye!")
             break
 
-        messages.append(HumanMessage(content=user_input))
-        result = agent.invoke({"messages": messages})
-        ai_messages = [m for m in result["messages"] if isinstance(m, AIMessage)]
-        if ai_messages:
-            answer = ai_messages[-1].content
-            print(f"\nAssistant: {answer}")
-        messages = result["messages"]
+        result = agent.invoke({"input": user_input, "chat_history": chat_history})
+        print(f"\nAssistant: {result['output']}")
+        chat_history.append(("human", user_input))
+        chat_history.append(("ai", result["output"]))
