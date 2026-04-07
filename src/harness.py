@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from langchain_core.messages import HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_openai import ChatOpenAI
+from langchain_ollama import ChatOllama
 
-from src.config import LLM_MODEL, LLM_TEMPERATURE, OPENAI_API_KEY
+from src.config import LLM_MODEL, LLM_TEMPERATURE, OLLAMA_BASE_URL
 from src.tools.neo4j_tool import neo4j_query, neo4j_schema
 
 SYSTEM_PROMPT = """\
@@ -31,10 +31,10 @@ def build_agent():
     """Create and return a LangChain agent executor."""
     from langgraph.prebuilt import create_react_agent
 
-    llm = ChatOpenAI(
+    llm = ChatOllama(
         model=LLM_MODEL,
         temperature=LLM_TEMPERATURE,
-        api_key=OPENAI_API_KEY,
+        base_url=OLLAMA_BASE_URL,
     )
 
     prompt = ChatPromptTemplate.from_messages([
